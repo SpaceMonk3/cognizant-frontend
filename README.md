@@ -52,4 +52,4 @@
 
 5. **Open your browser**
    
-   Navigate to [http://localhost:3000](http://localhost:3000)
+   Navigate to [http://localhost:3000](http://localhost:3000) (or whatever port your localhost is running on).
