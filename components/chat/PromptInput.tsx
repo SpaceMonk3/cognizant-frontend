@@ -8,6 +8,8 @@ interface PromptInputProps {
   disabled?: boolean;
 }
 
+const MAX_LENGTH = 3000;
+
 export default function PromptInput({ onSubmit, isLoading, disabled }: PromptInputProps) {
   const [prompt, setPrompt] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -72,7 +74,11 @@ export default function PromptInput({ onSubmit, isLoading, disabled }: PromptInp
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setPrompt(e.target.value);
+    const value = e.target.value;
+    // character limit
+    if (value.length <= MAX_LENGTH) {
+      setPrompt(value);
+    }
   };
 
   const handleSubmit = () => {
@@ -90,7 +96,9 @@ export default function PromptInput({ onSubmit, isLoading, disabled }: PromptInp
     }
   };
 
-  const isSubmitDisabled = !prompt.trim() || isLoading || disabled;
+  const isSubmitDisabled = !prompt.trim() || isLoading || disabled || prompt.length > MAX_LENGTH;
+  const remainingChars = MAX_LENGTH - prompt.length;
+  const isNearLimit = remainingChars < 100;
 
   return (
     <div className="flex flex-col space-y-2 sm:space-y-3">
@@ -102,12 +110,15 @@ export default function PromptInput({ onSubmit, isLoading, disabled }: PromptInp
           onKeyDown={handleKeyDown}
           placeholder="Type your message here..."
           disabled={isLoading || disabled}
-          className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed resize-none text-sm sm:text-base text-gray-900 bg-white placeholder:text-gray-400 leading-normal overflow-hidden"
+          maxLength={MAX_LENGTH}
+          className={`w-full px-3 sm:px-4 py-2 sm:py-3 pr-12 sm:pr-14 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed resize-none text-sm sm:text-base text-gray-900 bg-white placeholder:text-gray-400 leading-normal overflow-hidden ${
+            isNearLimit ? 'border-yellow-400' : 'border-gray-300'
+          }`}
           style={{ minHeight: 'auto', maxHeight: 'none', height: 'auto' }}
           aria-label="Chat input"
           aria-describedby="input-help"
           aria-required="true"
-          aria-invalid={false}
+          aria-invalid={prompt.length > MAX_LENGTH}
         />
         <button
           onClick={handleSubmit}
@@ -154,9 +165,23 @@ export default function PromptInput({ onSubmit, isLoading, disabled }: PromptInp
           )}
         </button>
       </div>
-      <p id="input-help" className="text-xs text-gray-500 px-1">
-        Press <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs font-mono">Enter</kbd> to send • <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs font-mono">Shift+Enter</kbd> for new line
-      </p>
+      <div className="flex items-center justify-between px-1">
+        <p id="input-help" className="text-xs text-gray-500">
+          Press <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs font-mono">Enter</kbd> to send • <kbd className="px-1.5 py-0.5 bg-gray-200 rounded text-xs font-mono">Shift+Enter</kbd> for new line
+        </p>
+        <p 
+          className={`text-xs ${
+            remainingChars < 0 
+              ? 'text-red-500 font-semibold' 
+              : isNearLimit 
+              ? 'text-yellow-600' 
+              : 'text-gray-400'
+          }`}
+          aria-live="polite"
+        >
+          {remainingChars < 0 ? `${Math.abs(remainingChars)} over limit` : `${remainingChars} remaining`}
+        </p>
+      </div>
     </div>
   );
 }

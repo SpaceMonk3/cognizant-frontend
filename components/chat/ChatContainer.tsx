@@ -25,15 +25,21 @@ export default function ChatContainer() {
 
   // Load conversations from localStorage on mount for chat history
   useEffect(() => {
-    const loaded = loadConversations();
-    setConversations(loaded);
-    
-    // Set the most recent conversation as active if available
-    if (loaded.length > 0) {
-      const mostRecent = loaded.sort(
-        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
-      )[0];
-      setActiveConversationId(mostRecent.id);
+    try {
+      const loaded = loadConversations();
+      setConversations(loaded);
+      
+      // Set the most recent conversation as active if available
+      if (loaded.length > 0) {
+        const mostRecent = loaded.sort(
+          (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+        )[0];
+        setActiveConversationId(mostRecent.id);
+      }
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+      // Continue with empty conversations
+      setError('Failed to load chat history. Starting with a new conversation.');
     }
   }, []);
 
@@ -49,18 +55,28 @@ export default function ChatContainer() {
 
   // Create new conversation
   const handleNewChat = useCallback(() => {
-    const newConversation: Conversation = {
-      id: `conv-${Date.now()}`,
-      title: 'New Chat',
-      messages: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    try {
+      const newConversation: Conversation = {
+        id: `conv-${Date.now()}`,
+        title: 'New Chat',
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    setConversations((prev) => [newConversation, ...prev]);
-    setActiveConversationId(newConversation.id);
-    setError(null);
-    setSidebarOpen(false); // Close sidebar on mobile after selecting
+      setConversations((prev) => {
+        const updated = [newConversation, ...prev];
+        saveConversations(updated);
+        return updated;
+      });
+      setActiveConversationId(newConversation.id);
+      setError(null);
+      setSidebarOpen(false); // Close sidebar on mobile after selecting
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create new conversation';
+      setError(errorMessage);
+      console.error('Failed to create new conversation:', err);
+    }
   }, []);
 
   // Switch to a different conversation
@@ -72,31 +88,43 @@ export default function ChatContainer() {
 
   // Update conversation title
   const handleUpdateTitle = useCallback((id: string, title: string) => {
-    setConversations((prev) => {
-      const updated = prev.map((conv) =>
-        conv.id === id ? { ...conv, title, updatedAt: new Date() } : conv
-      );
-      saveConversations(updated);
-      return updated;
-    });
+    try {
+      setConversations((prev) => {
+        const updated = prev.map((conv) =>
+          conv.id === id ? { ...conv, title, updatedAt: new Date() } : conv
+        );
+        saveConversations(updated);
+        return updated;
+      });
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update conversation title';
+      setError(errorMessage);
+      console.error('Failed to update conversation title:', err);
+    }
   }, []);
 
   // Delete conversation
   const handleDeleteConversation = useCallback((id: string) => {
-    setConversations((prev) => {
-      const filtered = prev.filter((conv) => conv.id !== id);
-      saveConversations(filtered);
-      return filtered;
-    });
+    try {
+      setConversations((prev) => {
+        const filtered = prev.filter((conv) => conv.id !== id);
+        saveConversations(filtered);
+        return filtered;
+      });
 
-    // switch to another if deleted conversation was active or create new
-    if (id === activeConversationId) {
-      const remaining = conversations.filter((c) => c.id !== id);
-      if (remaining.length > 0) {
-        setActiveConversationId(remaining[0].id);
-      } else {
-        handleNewChat();
+      // switch to another if deleted conversation was active or create new
+      if (id === activeConversationId) {
+        const remaining = conversations.filter((c) => c.id !== id);
+        if (remaining.length > 0) {
+          setActiveConversationId(remaining[0].id);
+        } else {
+          handleNewChat();
+        }
       }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete conversation';
+      setError(errorMessage);
+      console.error('Failed to delete conversation:', err);
     }
   }, [activeConversationId, conversations, handleNewChat]);
 
@@ -117,13 +145,20 @@ export default function ChatContainer() {
           updatedAt: new Date(),
         };
         
-        setConversations((prev) => {
-          const updated = [newConversation, ...prev];
-          saveConversations(updated);
-          return updated;
-        });
-        setActiveConversationId(newConversation.id);
-        currentConversation = newConversation;
+        try {
+          setConversations((prev) => {
+            const updated = [newConversation, ...prev];
+            saveConversations(updated);
+            return updated;
+          });
+          setActiveConversationId(newConversation.id);
+          currentConversation = newConversation;
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to create conversation';
+          setError(errorMessage);
+          console.error('Failed to create conversation:', err);
+          return; // Exit early if can't save
+        }
       }
 
       // Create user message
@@ -147,13 +182,20 @@ export default function ChatContainer() {
             : currentConversation.title,
       };
 
-      setConversations((prev) => {
-        const updated = prev.map((conv) =>
-          conv.id === currentConversation!.id ? updatedConversation : conv
-        );
-        saveConversations(updated);
-        return updated;
-      });
+      try {
+        setConversations((prev) => {
+          const updated = prev.map((conv) =>
+            conv.id === currentConversation!.id ? updatedConversation : conv
+          );
+          saveConversations(updated);
+          return updated;
+        });
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to save message';
+        setError(errorMessage);
+        console.error('Failed to save user message:', err);
+        return; // Exit early if can't save
+      }
 
       setIsLoading(true);
       setError(null);
@@ -184,13 +226,19 @@ export default function ChatContainer() {
           updatedAt: new Date(),
         };
 
-        setConversations((prev) => {
-          const updated = prev.map((conv) =>
-            conv.id === currentConversation!.id ? finalConversation : conv
-          );
-          saveConversations(updated);
-          return updated;
-        });
+        try {
+          setConversations((prev) => {
+            const updated = prev.map((conv) =>
+              conv.id === currentConversation!.id ? finalConversation : conv
+            );
+            saveConversations(updated);
+            return updated;
+          });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to save AI response';
+          setError(errorMessage);
+          console.error('Failed to save AI response:', err);
+        }
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : 'An unexpected error occurred';
@@ -215,20 +263,26 @@ export default function ChatContainer() {
     if (!activeConversation) return;
     
     if (confirm('Are you sure you want to clear this conversation?')) {
-      const clearedConversation: Conversation = {
-        ...activeConversation,
-        messages: [],
-        updatedAt: new Date(),
-      };
+      try {
+        const clearedConversation: Conversation = {
+          ...activeConversation,
+          messages: [],
+          updatedAt: new Date(),
+        };
 
-      setConversations((prev) => {
-        const updated = prev.map((conv) =>
-          conv.id === activeConversation.id ? clearedConversation : conv
-        );
-        saveConversations(updated);
-        return updated;
-      });
-      setError(null);
+        setConversations((prev) => {
+          const updated = prev.map((conv) =>
+            conv.id === activeConversation.id ? clearedConversation : conv
+          );
+          saveConversations(updated);
+          return updated;
+        });
+        setError(null);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to clear conversation';
+        setError(errorMessage);
+        console.error('Failed to clear conversation:', err);
+      }
     }
   }, [activeConversation]);
 

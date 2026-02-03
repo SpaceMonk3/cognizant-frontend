@@ -30,18 +30,41 @@ function deserializeConversation(data: any): Conversation {
 
 /**
  * Save all conversations to localStorage
+ * @throws {Error} If storage quota is exceeded or other storage errors occur
  */
 export function saveConversations(conversations: Conversation[]): void {
   try {
     const serialized = conversations.map(serializeConversation);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized));
   } catch (error) {
-    console.error('Failed to save conversations to localStorage:', error);
-    // Handle quota exceeded or other errors gracefully
-    if (error instanceof Error && error.name === 'QuotaExceededError') {
-      throw new Error('Storage quota exceeded. Please delete some conversations.');
+    // Check if it's a QuotaExceededError
+    if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+      // Try to free up space by keeping only the most recent conversations
+      const MAX_CONVERSATIONS = 50;
+      if (conversations.length > MAX_CONVERSATIONS) {
+        // Sort by updatedAt and keep only the most recent
+        const sorted = [...conversations].sort(
+          (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+        );
+        const limited = sorted.slice(0, MAX_CONVERSATIONS);
+        try {
+          const serialized = limited.map(serializeConversation);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(serialized));
+          console.warn(`Storage quota exceeded. Kept only the ${MAX_CONVERSATIONS} most recent conversations.`);
+          return;
+        } catch (retryError) {
+          throw new Error('Storage quota exceeded. Please delete some conversations to free up space.');
+        }
+      }
+      throw new Error('Storage quota exceeded. Please delete some conversations to free up space.');
     }
-    throw error;
+    
+    // Handle other storage errors
+    console.error('Failed to save conversations to localStorage:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to save conversations. Please try again.');
   }
 }
 
